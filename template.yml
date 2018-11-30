@@ -30,6 +30,7 @@ Resources:
       Events:
         PostEvent:
           Type: Api
+          Tracing: Active
           Properties:
             Path: /hook/{token}/{channel}
             Method: post
