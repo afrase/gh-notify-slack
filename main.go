@@ -16,28 +16,29 @@ const slackMessageText string = ":ship: New release for [*<%s|%s>*] `%s`"
 
 func buildMessage(payload *github.ReleaseEvent) slack.Attachment {
 	repo := strings.Split(payload.Repo.GetFullName(), "/")
-	buildURL, _ := getCircleCIBuildURL(os.Getenv("CIRCLECI_TOKEN"), repo[0], repo[1])
 
-	return slack.Attachment{
+	attachment := slack.Attachment{
 		Title:      payload.Release.GetName(),
 		AuthorName: payload.Release.Author.GetName(),
 		AuthorIcon: payload.Release.Author.GetAvatarURL(),
 		AuthorLink: payload.Release.Author.GetLogin(),
 		Text:       payload.Release.GetBody(),
 		Color:      "#4286f4",
+		Ts:         json.Number(payload.Release.GetCreatedAt().Unix()),
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Tag",
 				Value: payload.Release.GetHTMLURL(),
 				Short: false,
 			},
-			{
-				Title: "CircleCI",
-				Value: buildURL,
-				Short: false,
-			},
 		},
 	}
+
+	if buildURL, ok := getCircleCIBuildURL(os.Getenv("CIRCLECI_TOKEN"), repo[0], repo[1]); ok {
+		attachment.Fields = append(attachment.Fields, slack.AttachmentField{Title: "CircleCI", Value: buildURL, Short: false})
+	}
+
+	return attachment
 }
 
 // Handler is executed by AWS Lambda in the main function. Once the request

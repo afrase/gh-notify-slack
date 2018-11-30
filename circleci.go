@@ -19,6 +19,10 @@ type Workflow struct {
 }
 
 func getCircleCIBuildURL(token, account, repo string) (string, bool) {
+	if token == "" {
+		return "", false
+	}
+
 	url := fmt.Sprintf("https://circleci.com/api/v1.1/project/github/%s/%s?token=%s", account, repo, token)
 	resp, err := http.Get(url)
 	if err != nil {
