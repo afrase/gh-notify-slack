@@ -3,16 +3,60 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/aws/aws-lambda-go/lambda"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/google/go-github/github"
 	"github.com/nlopes/slack"
 )
 
 const slackMessageText string = ":ship: New release for [*<%s|%s>*] `%s`"
+
+// Build struct
+type Build struct {
+	VcsTag    string   `json:"vcs_tag"`
+	Workflows Workflow `json:"workflows"`
+}
+
+// Workflow struct
+type Workflow struct {
+	WorkflowID string `json:"workflow_id"`
+}
+
+func getCircleCIBuildURL(token, account, repo, tag string) (string, bool) {
+	if token == "" {
+		return "", false
+	}
+
+	url := fmt.Sprintf("https://circleci.com/api/v1.1/project/github/%s/%s?circle-token=%s", account, repo, token)
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Add("Accept", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", false
+	}
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	var circleBuilds []Build
+	if err := json.Unmarshal(body, &circleBuilds); err != nil {
+		return "", false
+	}
+
+	for _, build := range circleBuilds {
+		if build.VcsTag == tag {
+			return fmt.Sprintf("https://circleci.com/workflow-run/%s", build.Workflows.WorkflowID), true
+		}
+	}
+
+	return "", false
+}
 
 func buildMessage(payload *github.ReleaseEvent) slack.Attachment {
 	repo := strings.Split(payload.Repo.GetFullName(), "/")
@@ -24,7 +68,7 @@ func buildMessage(payload *github.ReleaseEvent) slack.Attachment {
 		AuthorLink: payload.Release.Author.GetLogin(),
 		Text:       payload.Release.GetBody(),
 		Color:      "#4286f4",
-		Ts:         json.Number(payload.Release.GetCreatedAt().Unix()),
+		Ts:         json.Number(strconv.FormatInt(payload.Release.GetCreatedAt().Unix(), 10)),
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Tag",
