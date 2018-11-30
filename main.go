@@ -44,6 +44,11 @@ func buildMessage(payload *github.ReleaseEvent) slack.Attachment {
 // Handler is executed by AWS Lambda in the main function. Once the request
 // is processed, it returns an Amazon API Gateway response object to AWS Lambda
 func Handler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	eventType := req.Headers["X-GitHub-Event"]
+	if eventType != "release" {
+		return events.APIGatewayProxyResponse{StatusCode: 200}, nil
+	}
+
 	var payload github.ReleaseEvent
 	if err := json.Unmarshal([]byte(req.Body), &payload); err != nil {
 		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Unable to handle request"}, err
