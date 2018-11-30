@@ -3,19 +3,20 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/google/go-github/github"
 	"github.com/nlopes/slack"
-	"os"
-	"strings"
 )
 
-const SlackMessageText string = ":ship: New release for [*<%s|%s>*] `%s`"
+const slackMessageText string = ":ship: New release for [*<%s|%s>*] `%s`"
 
 func buildMessage(payload *github.ReleaseEvent) slack.Attachment {
 	repo := strings.Split(payload.Repo.GetFullName(), "/")
-	buildUrl, _ := getCircleCIBuildUrl(os.Getenv("CIRCLECI_TOKEN"), repo[0], repo[1])
+	buildURL, _ := getCircleCIBuildURL(os.Getenv("CIRCLECI_TOKEN"), repo[0], repo[1])
 
 	return slack.Attachment{
 		Title:      payload.Release.GetName(),
@@ -32,7 +33,7 @@ func buildMessage(payload *github.ReleaseEvent) slack.Attachment {
 			},
 			{
 				Title: "CircleCI",
-				Value: buildUrl,
+				Value: buildURL,
 				Short: false,
 			},
 		},
@@ -52,7 +53,7 @@ func Handler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse,
 	}
 
 	message := buildMessage(&payload)
-	text := fmt.Sprintf(SlackMessageText, payload.Repo.GetHTMLURL(), payload.Repo.GetName(), payload.Release.GetTagName())
+	text := fmt.Sprintf(slackMessageText, payload.Repo.GetHTMLURL(), payload.Repo.GetName(), payload.Release.GetTagName())
 
 	client := slack.New(req.PathParameters["token"])
 

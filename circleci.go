@@ -7,16 +7,18 @@ import (
 	"net/http"
 )
 
+// Build struct
 type Build struct {
 	VcsTag    string     `json:"vcs_tag"`
 	Workflows []Workflow `json:"workflows"`
 }
 
+// Workflow struct
 type Workflow struct {
-	WorkflowId string `json:"workflow_id"`
+	WorkflowID string `json:"workflow_id"`
 }
 
-func getCircleCIBuildUrl(token, account, repo string) (string, bool) {
+func getCircleCIBuildURL(token, account, repo string) (string, bool) {
 	url := fmt.Sprintf("https://circleci.com/api/v1.1/project/github/%s/%s?token=%s", account, repo, token)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -31,7 +33,7 @@ func getCircleCIBuildUrl(token, account, repo string) (string, bool) {
 
 	for _, build := range circleBuilds {
 		if build.VcsTag != "" {
-			return build.Workflows[0].WorkflowId, true
+			return build.Workflows[0].WorkflowID, true
 		}
 	}
 
