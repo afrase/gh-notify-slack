@@ -34,7 +34,7 @@ func buildMessage(payload *github.ReleaseEvent) slack.Attachment {
 		},
 	}
 
-	if buildURL, ok := getCircleCIBuildURL(os.Getenv("CIRCLECI_TOKEN"), repo[0], repo[1]); ok {
+	if buildURL, ok := getCircleCIBuildURL(os.Getenv("CIRCLECI_TOKEN"), repo[0], repo[1], payload.Release.GetTagName()); ok {
 		attachment.Fields = append(attachment.Fields, slack.AttachmentField{Title: "CircleCI", Value: buildURL, Short: false})
 	}
 

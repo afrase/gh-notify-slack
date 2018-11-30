@@ -18,7 +18,7 @@ type Workflow struct {
 	WorkflowID string `json:"workflow_id"`
 }
 
-func getCircleCIBuildURL(token, account, repo string) (string, bool) {
+func getCircleCIBuildURL(token, account, repo, tag string) (string, bool) {
 	if token == "" {
 		return "", false
 	}
@@ -36,8 +36,8 @@ func getCircleCIBuildURL(token, account, repo string) (string, bool) {
 	}
 
 	for _, build := range circleBuilds {
-		if build.VcsTag != "" {
-			return build.Workflows[0].WorkflowID, true
+		if build.VcsTag == tag {
+			return fmt.Sprintf("https://circleci.com/workflow-run/%s", build.Workflows[0].WorkflowID), true
 		}
 	}
 
