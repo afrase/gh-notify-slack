@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-lambda-go/lambda"
-
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/google/go-github/github"
 	"github.com/nlopes/slack"
 )
@@ -21,15 +20,18 @@ const (
 	slackDisplayUsername string = "Release Bot"
 
 	defaultFieldColor string = "36a64f"
+
+	circleCIProjectURL  = "https://circleci.com/api/v1.1/project/github/%s/%s?circle-token=%s"
+	circleCIWorkflowURL = "https://circleci.com/workflow-run/%s"
 )
 
-// Build struct
+// Build struct for CircleCI response
 type Build struct {
 	VcsTag    string   `json:"vcs_tag"`
 	Workflows Workflow `json:"workflows"`
 }
 
-// Workflow struct
+// Workflow struct for CircleCI response
 type Workflow struct {
 	WorkflowID string `json:"workflow_id"`
 }
@@ -37,7 +39,8 @@ type Workflow struct {
 func getCircleCIBuilds(url string) ([]Build, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Add("Accept", "application/json")
-	client := &http.Client{}
+	// Set a 60 second timeout.
+	client := &http.Client{Timeout: time.Second * 60}
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -59,7 +62,7 @@ func getCircleCIBuildURL(token, account, repo, tag string) (string, bool) {
 		return "", false
 	}
 
-	url := fmt.Sprintf("https://circleci.com/api/v1.1/project/github/%s/%s?circle-token=%s", account, repo, token)
+	url := fmt.Sprintf(circleCIProjectURL, account, repo, token)
 	// try 3 times to find the build url
 	for i := 0; i < 2; i++ {
 		builds, err := getCircleCIBuilds(url)
@@ -69,7 +72,7 @@ func getCircleCIBuildURL(token, account, repo, tag string) (string, bool) {
 
 		for _, build := range builds {
 			if build.VcsTag == tag {
-				return fmt.Sprintf("https://circleci.com/workflow-run/%s", build.Workflows.WorkflowID), true
+				return fmt.Sprintf(circleCIWorkflowURL, build.Workflows.WorkflowID), true
 			}
 		}
 		time.Sleep(1 * time.Second)
@@ -120,17 +123,25 @@ func sendSlackMessage(event *github.ReleaseEvent, token, channel, color string) 
 // Handler is executed by AWS Lambda in the main function. Once the request
 // is processed, it returns an Amazon API Gateway response object to AWS Lambda
 func Handler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// Check the headers first because the body might not be in a format we expect.
 	eventType := req.Headers["X-GitHub-Event"]
-	// we only care about release events
+	// we only care about release events.
 	if eventType != "release" {
-		return events.APIGatewayProxyResponse{StatusCode: 200}, nil
+		return events.APIGatewayProxyResponse{Body: "Skipping because event is not 'release'", StatusCode: 200}, nil
 	}
 
+	// Parse the body into a `github.ReleaseEvent` struct.
 	var payload github.ReleaseEvent
 	if err := json.Unmarshal([]byte(req.Body), &payload); err != nil {
 		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Unable to handle request"}, err
 	}
 
+	// New actions have been added to the 'release' event. Only look for the 'publish' action.
+	if *payload.Action != "published" {
+		return events.APIGatewayProxyResponse{Body: "Skipping because action is not 'published'", StatusCode: 200}, nil
+	}
+
+	// Get the color query param if it exists.
 	color, ok := req.QueryStringParameters["color"]
 	if !ok {
 		color = defaultFieldColor
@@ -140,7 +151,7 @@ func Handler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse,
 		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Failed to send slack message"}, err
 	}
 
-	return events.APIGatewayProxyResponse{Body: `{ "done": true }`, StatusCode: 200}, nil
+	return events.APIGatewayProxyResponse{Body: "Success", StatusCode: 200}, nil
 }
 
 func main() {
