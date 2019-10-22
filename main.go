@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,6 +24,10 @@ const (
 
 	circleCIProjectURL  = "https://circleci.com/api/v1.1/project/github/%s/%s?circle-token=%s"
 	circleCIWorkflowURL = "https://circleci.com/workflow-run/%s"
+)
+
+var (
+	pullRequestRegexp = regexp.MustCompile(`#(\d+)`)
 )
 
 // Build struct for CircleCI response
@@ -63,8 +68,8 @@ func getCircleCIBuildURL(token, account, repo, tag string) (string, bool) {
 	}
 
 	url := fmt.Sprintf(circleCIProjectURL, account, repo, token)
-	// try 3 times to find the build url
-	for i := 0; i < 2; i++ {
+	// try 4 times to find the build url
+	for i := 1; i < 4; i++ {
 		builds, err := getCircleCIBuilds(url)
 		if err != nil {
 			break
@@ -75,19 +80,32 @@ func getCircleCIBuildURL(token, account, repo, tag string) (string, bool) {
 				return fmt.Sprintf(circleCIWorkflowURL, build.Workflows.WorkflowID), true
 			}
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Duration(i*2) * time.Second)
 	}
 
 	return "", false
 }
 
+func parseReleaseBody(payload *github.ReleaseEvent) string {
+	pullRequestUrl := fmt.Sprintf("<%s/pull/$1|#$1>", payload.Repo.GetHTMLURL())
+	return pullRequestRegexp.ReplaceAllString(payload.Release.GetBody(), pullRequestUrl)
+}
+
 func buildAttachment(payload *github.ReleaseEvent, color string) slack.Attachment {
+	// If the author was a bot then use the sender which is the person who publishes the release.
+	var user *github.User
+	if payload.Release.Author.GetType() == "Bot" {
+		user = payload.Sender
+	} else {
+		user = payload.Release.Author
+	}
+
 	attachment := slack.Attachment{
 		Title:      payload.Release.GetName(),
-		AuthorName: payload.Release.Author.GetLogin(),
-		AuthorIcon: payload.Release.Author.GetAvatarURL(),
-		AuthorLink: payload.Release.Author.GetHTMLURL(),
-		Text:       payload.Release.GetBody(),
+		AuthorName: user.GetLogin(),
+		AuthorIcon: user.GetAvatarURL(),
+		AuthorLink: user.GetHTMLURL(),
+		Text:       parseReleaseBody(payload),
 		Color:      fmt.Sprintf("#%s", color),
 		Ts:         json.Number(fmt.Sprintf("%d", payload.Release.GetPublishedAt().Unix())),
 		Fields: []slack.AttachmentField{
