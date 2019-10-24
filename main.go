@@ -87,8 +87,8 @@ func getCircleCIBuildURL(token, account, repo, tag string) (string, bool) {
 }
 
 func parseReleaseBody(payload *github.ReleaseEvent) string {
-	pullRequestUrl := fmt.Sprintf("<%s/pull/$1|#$1>", payload.Repo.GetHTMLURL())
-	return pullRequestRegexp.ReplaceAllString(payload.Release.GetBody(), pullRequestUrl)
+	pullRequestURL := fmt.Sprintf("<%s/pull/$1|#$1>", payload.Repo.GetHTMLURL())
+	return pullRequestRegexp.ReplaceAllString(payload.Release.GetBody(), pullRequestURL)
 }
 
 func buildAttachment(payload *github.ReleaseEvent, color string) slack.Attachment {
