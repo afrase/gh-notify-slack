@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	slackMsgText         string = ":ship: New release for [*<%s|%s>*] `%s`"
+	slackProdMsgText     string = ":ship: New Production release for [*<%s|%s>*] `%s`"
+	slackStageMsgText    string = ":construction: New Stage release for [*<%s|%s>*] `%s`"
 	slackDisplayUsername string = "Release Bot"
 
 	defaultFieldColor string = "36a64f"
@@ -130,7 +131,12 @@ func buildAttachment(payload *github.ReleaseEvent, color string) slack.Attachmen
 func sendSlackMessage(event *github.ReleaseEvent, token, channel, color string) error {
 	attachment := buildAttachment(event, color)
 	username := slack.MsgOptionUsername(slackDisplayUsername)
-	text := fmt.Sprintf(slackMsgText, event.Repo.GetHTMLURL(), event.Repo.GetName(), event.Release.GetTagName())
+	var text string
+	if strings.Contains(event.Release.GetTagName(), "-rc") {
+		text = fmt.Sprintf(slackStageMsgText, event.Repo.GetHTMLURL(), event.Repo.GetName(), event.Release.GetTagName())
+	} else {
+		text = fmt.Sprintf(slackProdMsgText, event.Repo.GetHTMLURL(), event.Repo.GetName(), event.Release.GetTagName())
+	}
 	message := slack.MsgOptionText(text, false)
 	client := slack.New(token)
 
